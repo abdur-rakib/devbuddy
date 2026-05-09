@@ -274,7 +274,7 @@ Environment variables (`.env`):
 ## Project Structure
 
 ```
-personal-assistant/
+devbuddy/
 ├── src/
 │   ├── index.ts
 │   ├── bot.ts

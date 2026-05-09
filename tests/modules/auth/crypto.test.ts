@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { encrypt, decrypt } from "../src/modules/auth/crypto.js";
+import { encrypt, decrypt } from "../../../src/modules/auth/crypto.js";
 
 describe("crypto", () => {
   const testKey = "a".repeat(64); // 32 bytes hex

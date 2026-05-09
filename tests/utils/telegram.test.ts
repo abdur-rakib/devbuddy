@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { chunkMessage, escapeMarkdown } from "../src/utils/telegram.js";
+import { chunkMessage, escapeMarkdown } from "../../src/utils/telegram.js";
 
 describe("chunkMessage", () => {
   it("returns single chunk for short message", () => {

@@ -3,7 +3,7 @@ import {
   formatRepoList,
   formatIssue,
   formatPrSummary,
-} from "../src/modules/github/formatters.js";
+} from "../../../src/modules/github/formatters.js";
 
 describe("formatRepoList", () => {
   it("formats repos with owner/name", () => {

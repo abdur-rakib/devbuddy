@@ -13,7 +13,7 @@
 ## File Structure
 
 ```
-personal-assistant/
+devbuddy/
 ├── src/
 │   ├── index.ts              — Entry point: init DB, create bot, start polling
 │   ├── bot.ts                — Grammy bot instance, middleware registration, command/callback routing
@@ -85,7 +85,7 @@ personal-assistant/
 
 Run:
 ```bash
-cd /Users/bs01080/Desktop/aihero/personal-assistant
+cd /Users/bs01080/Desktop/aihero/devbuddy
 npm init -y
 ```
 
