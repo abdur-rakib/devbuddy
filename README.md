@@ -32,33 +32,33 @@ DevBuddy is a Telegram bot that brings GitHub directly into your chat. Browse re
 ## 🏗️ Architecture
 
 ```
-                                ┌──────────────┐
-                                │   Telegram   │
-                                │     User     │
-                                └──────┬───────┘
-                                        │
-                                        ▼
-                                ┌──────────────┐
-                                │ Telegram API │
-                                └──────┬───────┘
-                                        │
-                                        ▼
-            ┌──────────────────────────────────────────────────────┐
-            │                    DevBuddy Bot                      │
-            │                                                      │
-            │   ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐        │
-            │   │  Auth  │ │ GitHub │ │ Review │ │Codegen │        │
-            │   └────────┘ └────────┘ └────────┘ └────────┘        │
-            │                    ┌────────┐                        │
-            │                    │  Chat  │                        │
-            │                    └────────┘                        │
-            └───────┬──────────────┬───────────────┬───────────────┘
-                │              │               │
-                ▼              ▼               ▼
-            ┌────────────┐ ┌────────────┐ ┌──────────────┐
-            │  SQLite DB │ │ GitHub API │ │  Copilot AI  │
-            │  (bot.db)  │ │ (Octokit)  │ │   (gpt-4o)   │
-            └────────────┘ └────────────┘ └──────────────┘
+                    ┌──────────────┐
+                    │   Telegram   │
+                    │     User     │
+                    └──────┬───────┘
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │ Telegram API │
+                    └──────┬───────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────┐
+│                  DevBuddy Bot                    │
+│                                                  │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌──────────┐  │
+│  │  Auth  │ │ GitHub │ │ Review │ │ Codegen  │  │
+│  └────────┘ └────────┘ └────────┘ └──────────┘  │
+│                  ┌────────┐                      │
+│                  │  Chat  │                      │
+│                  └────────┘                      │
+└──────┬───────────────┬───────────────┬───────────┘
+       │               │               │
+       ▼               ▼               ▼
+┌────────────┐  ┌────────────┐  ┌──────────────┐
+│  SQLite DB │  │ GitHub API │  │  Copilot AI  │
+│  (bot.db)  │  │ (Octokit)  │  │   (gpt-4o)   │
+└────────────┘  └────────────┘  └──────────────┘
 ```
 
 ---
@@ -250,33 +250,33 @@ make docker-down
 ## 🔐 How Authentication Works
 
 ```
-        ┌──────────┐         ┌──────────────┐        ┌──────────────┐
-        │  User    │         │   DevBuddy   │        │   SQLite DB  │
-        │(Telegram)│         │    Bot       │        │   (bot.db)   │
-        └────┬─────┘         └──────┬───────┘        └──────┬───────┘
-            │                      │                       │
-            │  /start              │                       │
-            │─────────────────────▶│                       │
-            │                      │  check user exists    │
-            │                      │──────────────────────▶│
-            │                      │◀──────────────────────│
-            │  "Enter your GitHub  │                       │
-            │   Personal Access    │                       │
-            │   Token"             │                       │
-            │◀─────────────────────│                       │
-            │                      │                       │
-            │  ghp_xxxxxxxxxxxx    │                       │
-            │─────────────────────▶│                       │
-            │                      │  encrypt(token)       │
-            │                      │──────┐                │
-            │                      │◀─────┘ AES-256-GCM    │
-            │                      │                       │
-            │                      │  store encrypted      │
-            │                      │──────────────────────▶│
-            │                      │                       │
-            │  ✅ "You're all set!"│                       │
-            │◀─────────────────────│                       │
-            │                      │                       │
+┌──────────┐         ┌──────────────┐        ┌──────────────┐
+│  User    │         │   DevBuddy   │        │   SQLite DB  │
+│(Telegram)│         │     Bot      │        │   (bot.db)   │
+└────┬─────┘         └──────┬───────┘        └──────┬───────┘
+     │                      │                       │
+     │  /start              │                       │
+     │─────────────────────▶│                       │
+     │                      │  check user exists    │
+     │                      │──────────────────────▶│
+     │                      │◀──────────────────────│
+     │  "Enter your GitHub  │                       │
+     │   Personal Access    │                       │
+     │   Token"             │                       │
+     │◀─────────────────────│                       │
+     │                      │                       │
+     │  ghp_xxxxxxxxxxxx    │                       │
+     │─────────────────────▶│                       │
+     │                      │  encrypt(token)       │
+     │                      │──────┐                │
+     │                      │◀─────┘ AES-256-GCM    │
+     │                      │                       │
+     │                      │  store encrypted      │
+     │                      │──────────────────────▶│
+     │                      │                       │
+     │  ✅ "You're all set!"│                       │
+     │◀─────────────────────│                       │
+     │                      │                       │
 ```
 
 - Tokens are encrypted with **AES-256-GCM** before storage
@@ -307,23 +307,23 @@ The project uses [Vitest](https://vitest.dev/) as the test runner with Node.js e
 The Docker setup provides a production-ready deployment:
 
 ```
-        ┌──────────────────────────────────────────────┐
-        │              docker-compose                  │
-        │                                              │
-        │  ┌────────────────────────────────────────┐  │
-        │  │           bot container                │  │
-        │  │                                        │  │
-        │  │   node:20-alpine + git                 │  │
-        │  │   npm ci → tsc → node dist/index.js    │  │
-        │  │                                        │  │
-        │  │   Volumes:                             │  │
-        │  │     ./data → /app/data  (SQLite DB)    │  │
-        │  │     codegen-tmp → /tmp/codegen         │  │
-        │  │                                        │  │
-        │  │   Restart: unless-stopped              │  │
-        │  └────────────────────────────────────────┘  │
-        │                                              │
-        └──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│              docker-compose                  │
+│                                              │
+│  ┌────────────────────────────────────────┐  │
+│  │           bot container                │  │
+│  │                                        │  │
+│  │   node:20-alpine + git                 │  │
+│  │   npm ci → tsc → node dist/index.js    │  │
+│  │                                        │  │
+│  │   Volumes:                             │  │
+│  │     ./data → /app/data  (SQLite DB)    │  │
+│  │     codegen-tmp → /tmp/codegen         │  │
+│  │                                        │  │
+│  │   Restart: unless-stopped              │  │
+│  └────────────────────────────────────────┘  │
+│                                              │
+└──────────────────────────────────────────────┘
 ```
 
 The `data/` volume is mounted from the host so the SQLite database persists across container restarts.
