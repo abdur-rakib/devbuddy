@@ -1,0 +1,15 @@
+services:
+  bot:
+    build: .
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - DB_PATH=/app/data/bot.db
+      - CODEGEN_DIR=/tmp/codegen
+    volumes:
+      - ./data:/app/data
+      - codegen-tmp:/tmp/codegen
+    restart: unless-stopped
+
+volumes:
+  codegen-tmp:
