@@ -1,4 +1,4 @@
-# Telegram GitLab Bot — Design Spec
+# Telegram GitHub Bot — Design Spec
 
 **Date:** 2026-05-09
 **Status:** Approved
@@ -6,7 +6,7 @@
 
 ## Problem Statement
 
-Build a multi-user Telegram bot that connects to a self-hosted GitLab instance. Each user provides their own GitLab PAT and GitHub token (for Copilot Models API). The bot enables browsing repos, issues, and MRs, AI-powered MR review, AI-driven code generation with human review before MR creation, and free-form AI chat — all through an inline-keyboard-driven Telegram UI.
+Build a multi-user Telegram bot that connects to GitHub. Each user provides their own GitHub PAT (used for both the GitHub REST API and the Copilot Models API). The bot enables browsing repos, issues, and PRs, AI-powered PR review, AI-driven code generation with human review before PR creation, and free-form AI chat — all through an inline-keyboard-driven Telegram UI.
 
 ## Architecture
 
@@ -18,14 +18,14 @@ Build a multi-user Telegram bot that connects to a self-hosted GitLab instance. 
                         ┌────────────┬───────────┼───────────┬──────────────┐
                         │            │           │           │              │
                   ┌─────▼─────┐ ┌────▼────┐ ┌───▼────┐ ┌───▼─────┐ ┌─────▼──────┐
-                  │ Auth      │ │ GitLab  │ │ MR     │ │ CodeGen │ │ AI Chat    │
+                  │ Auth      │ │ GitHub  │ │ PR     │ │ CodeGen │ │ AI Chat    │
                   │ Module    │ │ Module  │ │ Review │ │ Module  │ │ Module     │
                   │           │ │         │ │ Module │ │         │ │            │
                   │ token mgmt│ │ repos,  │ │ AI     │ │ clone,  │ │ Copilot    │
                   │ user ctx  │ │ issues, │ │ review │ │ edit,   │ │ Models API │
-                  │ encryption│ │ MRs     │ │ via    │ │ push,   │ │ convo      │
+                  │ encryption│ │ PRs     │ │ via    │ │ push,   │ │ convo      │
                   │           │ │ via API │ │ Copilot│ │ create  │ │ history    │
-                  └───────────┘ └─────────┘ └────────┘ │ MR      │ └────────────┘
+                  └───────────┘ └─────────┘ └────────┘ │ PR      │ └────────────┘
                                                        └─────────┘
                                     │
                               ┌─────▼─────┐
@@ -38,13 +38,13 @@ Build a multi-user Telegram bot that connects to a self-hosted GitLab instance. 
 
 ### Modules
 
-1. **Auth Module** — User registration, token storage (AES-256-GCM encrypted at rest), per-user GitLab API client factory, per-user Copilot API client factory. Grammy middleware checks auth on every message.
+1. **Auth Module** — User registration, token storage (AES-256-GCM encrypted at rest), per-user GitHub API client factory (Octokit), per-user Copilot API client factory. A single GitHub PAT serves both purposes. Grammy middleware checks auth on every message.
 
-2. **GitLab Module** — Wraps GitLab REST API via user's PAT. Browse projects, list issues, list MRs, view MR diffs, branch listing. Each user gets their own API client scoped to their token and GitLab instance URL.
+2. **GitHub Module** — Wraps GitHub REST API via user's PAT using Octokit. Browse repos, list issues, list PRs, view PR diffs, branch listing. Each user gets their own Octokit instance scoped to their token.
 
-3. **MR Review Module** — Fetches MR diff via GitLab API, sends to Copilot Models API for analysis. Returns structured review (summary, issues found, suggestions). User can approve, request changes, or post comments via inline keyboards.
+3. **PR Review Module** — Fetches PR diff via GitHub API, sends to Copilot Models API for analysis. Returns structured review (summary, issues found, suggestions). User can approve, request changes, or post comments via inline keyboards.
 
-4. **CodeGen Module** — Clones repo to isolated temp directory, creates branch, sends repo context + user instructions to Copilot Models API, applies generated code changes, commits, pushes, creates MR. Runs in child process (`child_process.fork()`) to avoid blocking. Workspace cleanup after completion.
+4. **CodeGen Module** — Clones repo to isolated temp directory, creates branch, sends repo context + user instructions to Copilot Models API, applies generated code changes, commits, pushes, creates PR. Runs in child process (`child_process.fork()`) to avoid blocking. Workspace cleanup after completion.
 
 5. **AI Chat Module** — Free-form conversation with Copilot Models API. Maintains per-user conversation history in SQLite. Can be repo-aware (user sets active project context).
 
@@ -53,7 +53,7 @@ Build a multi-user Telegram bot that connects to a self-hosted GitLab instance. 
 | Package | Purpose |
 |---------|---------|
 | `grammy` | Telegram Bot framework |
-| `@gitbeaker/rest` | GitLab REST API client |
+| `octokit` | GitHub REST API client |
 | `better-sqlite3` | SQLite database |
 | `execa` | Safe subprocess execution (git, child processes) |
 | `node:crypto` | AES-256-GCM token encryption |
@@ -64,10 +64,8 @@ Build a multi-user Telegram bot that connects to a self-hosted GitLab instance. 
 
 ```
 User sends /start
-  → Bot asks for GitLab instance URL (e.g., gitlab.company.com)
-  → Bot asks for GitLab PAT
-  → Bot asks for GitHub token (for Copilot API)
-  → Bot validates both tokens (test API calls)
+  → Bot asks for GitHub PAT (with required scopes: repo, read:org)
+  → Bot validates token (test API call to /user)
   → ✅ "You're set up! Use the menu below to get started."
   → Shows main menu inline keyboard
 ```
@@ -76,32 +74,32 @@ User sends /start
 
 ```
 ┌──────────────┬──────────────┐
-│ 📂 Projects  │ 💬 AI Chat   │
+│ 📂 Repos     │ 💬 AI Chat   │
 ├──────────────┼──────────────┤
 │ ⚙️ Settings  │ ❓ Help      │
 └──────────────┴──────────────┘
 ```
 
-### Project Context Menu
+### Repo Context Menu
 
-After selecting a project:
+After selecting a repo:
 
 ```
 ┌──────────────┬──────────────┐
-│ 🔀 MRs       │ 🐛 Issues    │
+│ 🔀 PRs       │ 🐛 Issues    │
 ├──────────────┼──────────────┤
 │ 🌿 Branches  │ 🤖 New Feature│
 ├──────────────┴──────────────┤
-│ ◀️ Back to Projects          │
+│ ◀️ Back to Repos             │
 └─────────────────────────────┘
 ```
 
-### MR Detail View
+### PR Detail View
 
 ```
-MR #42: Fix login timeout
+PR #42: Fix login timeout
 By @john | main ← fix/login
-Status: Open | Pipeline: ✅ passed
+Status: Open | CI: ✅ passed
 
 ┌──────────┬──────────┬──────────┐
 │ 📄 Diff  │ 🤖 Review│ 💬 Comments│
@@ -118,9 +116,9 @@ User taps "🤖 New Feature"
   → User types description
   → Bot: "Working on it... 🔄" (clone, generate, commit)
   → Bot shows summary of changes (files modified, diff preview)
-  → Inline keyboard: [✅ Create MR] [📄 View Full Diff] [🔄 Revise] [❌ Cancel]
+  → Inline keyboard: [✅ Create PR] [📄 View Full Diff] [🔄 Revise] [❌ Cancel]
   → If "Revise": user provides feedback, AI iterates
-  → If "Create MR": bot pushes and creates MR
+  → If "Create PR": bot pushes and creates PR
 ```
 
 ### AI Chat Flow
@@ -141,20 +139,17 @@ CREATE TABLE users (
   id INTEGER PRIMARY KEY,
   telegram_id INTEGER UNIQUE NOT NULL,
   telegram_username TEXT,
-  gitlab_url TEXT NOT NULL,
-  gitlab_token_enc BLOB NOT NULL,
-  github_token_enc BLOB NOT NULL,
-  active_project_id INTEGER,
+  github_token_enc BLOB NOT NULL,    -- AES-256 encrypted PAT (used for both GitHub API and Copilot)
+  active_repo_id INTEGER,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Cached project list per user
-CREATE TABLE projects (
+-- Cached repo list per user
+CREATE TABLE repos (
   id INTEGER PRIMARY KEY,
   user_id INTEGER NOT NULL,
-  gitlab_project_id INTEGER NOT NULL,
-  name TEXT NOT NULL,
-  path_with_namespace TEXT NOT NULL,
+  github_repo_id INTEGER NOT NULL,
+  full_name TEXT NOT NULL,           -- e.g., "owner/repo"
   default_branch TEXT,
   last_synced DATETIME,
   FOREIGN KEY (user_id) REFERENCES users(id)
@@ -175,18 +170,18 @@ CREATE TABLE chat_messages (
 CREATE TABLE codegen_jobs (
   id TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL,
-  project_id INTEGER NOT NULL,
+  repo_id INTEGER NOT NULL,
   description TEXT NOT NULL,
   status TEXT DEFAULT 'pending',
   branch_name TEXT,
-  mr_url TEXT,
+  pr_url TEXT,
   workspace_path TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 ```
 
-Token encryption: AES-256-GCM with a master key from `ENCRYPTION_KEY` environment variable. Tokens are never stored in plaintext.
+Token encryption: AES-256-GCM with a master key from `ENCRYPTION_KEY` environment variable. Tokens are never stored in plaintext. A single GitHub PAT is used for both the GitHub REST API and the Copilot Models API.
 
 ## Code Generation Detail
 
@@ -210,9 +205,9 @@ Token encryption: AES-256-GCM with a master key from `ENCRYPTION_KEY` environmen
 6. User reviews via inline keyboard:
    - View diff (chunked for Telegram's 4096-char limit)
    - Revise (send feedback → AI iterates, re-applies)
-   - Create MR (`git push` + GitLab API create MR)
+   - Create PR (`git push` + GitHub API create PR)
    - Cancel (cleanup workspace)
-7. After MR created or cancelled → cleanup temp directory
+7. After PR created or cancelled → cleanup temp directory
 
 ### Safety Measures
 
@@ -231,7 +226,7 @@ Token encryption: AES-256-GCM with a master key from `ENCRYPTION_KEY` environmen
 
 ## Error Handling
 
-- All GitLab API calls wrapped in try/catch with user-friendly error messages
+- All GitHub API calls wrapped in try/catch with user-friendly error messages
 - Token validation on setup and periodic re-validation
 - Invalid/expired token → prompt user to update via Settings menu
 - Copilot API rate limits → queue with exponential backoff
@@ -252,7 +247,7 @@ Token encryption: AES-256-GCM with a master key from `ENCRYPTION_KEY` environmen
 
 | Resource | Limit |
 |----------|-------|
-| GitLab API calls | 5/second per user |
+| GitHub API calls | 5/second per user |
 | Concurrent codegen jobs | 1 per user |
 | AI chat messages | 30/hour per user |
 
@@ -294,7 +289,7 @@ personal-assistant/
 │   │   │   ├── handlers.ts
 │   │   │   ├── crypto.ts
 │   │   │   └── types.ts
-│   │   ├── gitlab/
+│   │   ├── github/
 │   │   │   ├── client.ts
 │   │   │   ├── handlers.ts
 │   │   │   ├── formatters.ts
