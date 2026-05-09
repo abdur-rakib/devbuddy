@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getRepoTree, cleanupWorkspace } from "../src/modules/codegen/git.js";
+import { getRepoTree, cleanupWorkspace } from "../../../src/modules/codegen/git.js";
 
 const TEST_DIR = join("/tmp", "git-test-" + Date.now());
 

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { applyFileChanges } from "../src/modules/codegen/worker.js";
-import type { FileChange } from "../src/modules/codegen/types.js";
+import { applyFileChanges } from "../../../src/modules/codegen/worker.js";
+import type { FileChange } from "../../../src/modules/codegen/types.js";
 
 const TEST_DIR = join(process.cwd(), ".test-worker-tmp");
 

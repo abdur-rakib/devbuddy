@@ -6,7 +6,7 @@ import {
   paginationRow,
   codegenReviewKeyboard,
   chatKeyboard,
-} from "../src/ui/keyboards.js";
+} from "../../src/ui/keyboards.js";
 
 describe("mainMenuKeyboard", () => {
   it("returns correct structure with repos, chat, settings, help buttons", () => {

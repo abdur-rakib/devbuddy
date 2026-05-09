@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { paginate } from "../src/ui/pagination.js";
+import { paginate } from "../../src/ui/pagination.js";
 
 describe("paginate", () => {
   const items = Array.from({ length: 25 }, (_, i) => `item-${i}`);

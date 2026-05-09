@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { CopilotClient } from "../src/utils/copilot-api.js";
+import { CopilotClient } from "../../src/utils/copilot-api.js";
 
 // We'll test the message building logic, not actual HTTP calls
 describe("CopilotClient", () => {

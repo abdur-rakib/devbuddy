@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   buildCodeGenSystemPrompt,
   CODEGEN_REVISION_PROMPT,
-} from "../src/modules/codegen/prompts.js";
-import { CHAT_SYSTEM_PROMPT } from "../src/modules/chat/prompts.js";
+} from "../../../src/modules/codegen/prompts.js";
+import { CHAT_SYSTEM_PROMPT } from "../../../src/modules/chat/prompts.js";
 
 describe("buildCodeGenSystemPrompt", () => {
   it("includes repo structure in output", () => {
