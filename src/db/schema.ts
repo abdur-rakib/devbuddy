@@ -24,7 +24,7 @@ export function initializeSchema(): void {
     );
 
     CREATE TABLE IF NOT EXISTS chat_messages (
-      id INTEGER PRIMARY KEY,
+      id TEXT PRIMARY KEY,
       user_id INTEGER NOT NULL,
       session_id TEXT NOT NULL,
       role TEXT NOT NULL,

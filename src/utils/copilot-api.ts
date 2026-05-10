@@ -43,6 +43,7 @@ export class CopilotClient {
     conversation: ChatMessage[]
   ): Promise<string> {
     const messages = this.buildMessages(systemPrompt, conversation);
+    console.log(`🌐 [CopilotClient] API call START — model=${this.model}, messageCount=${messages.length}`);
 
     const response = await fetch(`${this.apiUrl}/chat/completions`, {
       method: "POST",
@@ -57,18 +58,25 @@ export class CopilotClient {
       }),
     });
 
+    console.log(`🌐 [CopilotClient] API response — status=${response.status}`);
+
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(
+      const err = new Error(
         `Copilot API error (${response.status}): ${errorText}`
       );
+      console.error(`❌ [CopilotClient] API error — ${JSON.stringify(err, Object.getOwnPropertyNames(err))}`);
+      throw err;
     }
 
     const data = (await response.json()) as ChatCompletionResponse;
     const content = data.choices[0]?.message?.content;
     if (!content) {
-      throw new Error("Copilot API returned empty response");
+      const err = new Error("Copilot API returned empty response");
+      console.error(`❌ [CopilotClient] Empty response — ${JSON.stringify(err, Object.getOwnPropertyNames(err))}`);
+      throw err;
     }
+    console.log(`🌐 [CopilotClient] API call END — responseLength=${content.length}`);
     return content;
   }
 }

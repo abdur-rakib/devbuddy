@@ -15,8 +15,12 @@ import type { CodeGenResult, CodeGenJob } from "./types.js";
 import { execa } from "execa";
 
 export async function handleCodeGenStart(ctx: BotContext, repoId: number): Promise<void> {
+  console.log(`🛠️ [handleCodeGenStart] START — repoId=${repoId}, telegramId=${ctx.from?.id}`);
   await ctx.answerCallbackQuery();
-  if (!ctx.user) return;
+  if (!ctx.user) {
+    console.log("🛠️ [handleCodeGenStart] No user found, exiting early");
+    return;
+  }
 
   const db = getDb();
   const activeJob = db
@@ -24,6 +28,7 @@ export async function handleCodeGenStart(ctx: BotContext, repoId: number): Promi
     .get(ctx.user.id) as CodeGenJob | undefined;
 
   if (activeJob) {
+    console.log(`⚠️ [handleCodeGenStart] Active job already exists — jobId=${activeJob.id}, status=${activeJob.status}`);
     await ctx.editMessageText("⚠️ You already have an active code generation job. Please finish or cancel it first.", {
       reply_markup: {
         inline_keyboard: [
@@ -34,6 +39,7 @@ export async function handleCodeGenStart(ctx: BotContext, repoId: number): Promi
     return;
   }
 
+  console.log("🛠️ [handleCodeGenStart] No active job, awaiting description");
   ctx.session.codegenAwaitingDescription = true;
 
   const repo = db.prepare("SELECT * FROM repos WHERE id = ?").get(repoId) as any;
@@ -41,13 +47,21 @@ export async function handleCodeGenStart(ctx: BotContext, repoId: number): Promi
     `🤖 *New Feature — ${repo.full_name}*\n\nDescribe what you want to build:`,
     { parse_mode: "Markdown" }
   );
+  console.log("🛠️ [handleCodeGenStart] END");
 }
 
 export async function handleCodeGenDescription(ctx: BotContext): Promise<void> {
-  if (!ctx.session.codegenAwaitingDescription || !ctx.user) return;
+  console.log(`🛠️ [handleCodeGenDescription] START — telegramId=${ctx.from?.id}`);
+  if (!ctx.session.codegenAwaitingDescription || !ctx.user) {
+    console.log("🛠️ [handleCodeGenDescription] Not awaiting description or no user, exiting early");
+    return;
+  }
 
   const description = ctx.message?.text?.trim();
-  if (!description) return;
+  if (!description) {
+    console.log("🛠️ [handleCodeGenDescription] Empty description, exiting early");
+    return;
+  }
 
   ctx.session.codegenAwaitingDescription = false;
 
@@ -56,13 +70,16 @@ export async function handleCodeGenDescription(ctx: BotContext): Promise<void> {
     .get(ctx.user.active_repo_id, ctx.user.id) as any;
 
   if (!repo) {
+    console.log("🛠️ [handleCodeGenDescription] No active repo found");
     await ctx.reply("❌ No active repo selected.");
     return;
   }
+  console.log(`🛠️ [handleCodeGenDescription] Repo found — fullName=${repo.full_name}`);
 
   const jobId = randomUUID();
   const branchName = `feature/${description.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 30)}-${jobId.slice(0, 6)}`;
   const workspacePath = join(config.codegenDir, jobId);
+  console.log(`🛠️ [handleCodeGenDescription] Job created — jobId=${jobId}, branch=${branchName}`);
 
   db.prepare(
     `INSERT INTO codegen_jobs (id, user_id, repo_id, description, status, branch_name, workspace_path)
@@ -76,26 +93,43 @@ export async function handleCodeGenDescription(ctx: BotContext): Promise<void> {
   try {
     const token = decrypt(ctx.user.github_token_enc, config.encryptionKey);
 
+    console.log(`📦 [handleCodeGenDescription] Cloning repo — fullName=${repo.full_name}`);
     await cloneRepo(`https://github.com/${repo.full_name}.git`, workspacePath, token);
-    await createBranch(workspacePath, branchName);
+    console.log("📦 [handleCodeGenDescription] Clone complete");
 
+    console.log(`🌿 [handleCodeGenDescription] Creating branch — branch=${branchName}`);
+    await createBranch(workspacePath, branchName);
+    console.log("🌿 [handleCodeGenDescription] Branch created");
+
+    console.log("🌳 [handleCodeGenDescription] Getting repo tree");
     const repoTree = await getRepoTree(workspacePath);
+    console.log(`🌳 [handleCodeGenDescription] Repo tree retrieved — length=${repoTree.length}`);
+
     const systemPrompt = buildCodeGenSystemPrompt(repoTree);
 
     const copilot = new CopilotClient(token);
+    console.log("🤖 [handleCodeGenDescription] Starting AI codegen call");
     const response = await copilot.chatCompletion(systemPrompt, [
       { role: "user", content: description },
     ]);
+    console.log(`🤖 [handleCodeGenDescription] AI codegen call complete — responseLength=${response.length}`);
 
     let result: CodeGenResult;
     try {
       result = JSON.parse(response);
-    } catch {
+      console.log(`✅ [handleCodeGenDescription] JSON parse successful — fileCount=${result.files.length}, summary="${result.summary}"`);
+    } catch (parseError) {
+      console.error(`❌ [handleCodeGenDescription] JSON parse failed — error=${JSON.stringify(parseError, Object.getOwnPropertyNames(parseError as object))}`);
       throw new Error("AI returned invalid response format");
     }
 
+    console.log(`📝 [handleCodeGenDescription] Applying file changes — fileCount=${result.files.length}`);
     await applyFileChanges(workspacePath, result.files);
+    console.log("📝 [handleCodeGenDescription] File changes applied");
+
+    console.log(`💾 [handleCodeGenDescription] Committing — message="${result.commitMessage}"`);
     await commitAll(workspacePath, result.commitMessage);
+    console.log("💾 [handleCodeGenDescription] Commit complete");
 
     db.prepare("UPDATE codegen_jobs SET status = 'review' WHERE id = ?").run(jobId);
 
@@ -110,7 +144,9 @@ export async function handleCodeGenDescription(ctx: BotContext): Promise<void> {
         reply_markup: codegenReviewKeyboard(jobId),
       }
     );
+    console.log(`🛠️ [handleCodeGenDescription] END — success, jobId=${jobId}`);
   } catch (error: any) {
+    console.error(`❌ [handleCodeGenDescription] Error — jobId=${jobId}, error=${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
     db.prepare("UPDATE codegen_jobs SET status = 'failed' WHERE id = ?").run(jobId);
     await cleanupWorkspace(workspacePath);
     await ctx.reply(`❌ Code generation failed: ${error.message}`);
@@ -118,62 +154,105 @@ export async function handleCodeGenDescription(ctx: BotContext): Promise<void> {
 }
 
 export async function handleCodeGenDiff(ctx: BotContext, jobId: string): Promise<void> {
+  console.log(`🛠️ [handleCodeGenDiff] START — jobId=${jobId}, telegramId=${ctx.from?.id}`);
   await ctx.answerCallbackQuery();
 
   const db = getDb();
   const job = db.prepare("SELECT * FROM codegen_jobs WHERE id = ?").get(jobId) as CodeGenJob | undefined;
-  if (!job?.workspace_path) return;
+  if (!job?.workspace_path) {
+    console.log(`🛠️ [handleCodeGenDiff] Job not found or no workspace — jobId=${jobId}`);
+    return;
+  }
+  console.log(`🛠️ [handleCodeGenDiff] Job found — workspace=${job.workspace_path}`);
 
   try {
     const { stdout } = await execa("git", ["diff", "HEAD~1"], { cwd: job.workspace_path });
+    console.log(`🛠️ [handleCodeGenDiff] Diff retrieved — length=${stdout.length}`);
     const chunks = chunkMessage(`\`\`\`diff\n${stdout}\n\`\`\``, 4000);
     for (const chunk of chunks) {
       await ctx.reply(chunk, { parse_mode: "Markdown" });
     }
+    console.log(`🛠️ [handleCodeGenDiff] END — sent ${chunks.length} chunk(s)`);
   } catch (error: any) {
+    console.error(`❌ [handleCodeGenDiff] Error — jobId=${jobId}, error=${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
     await ctx.reply(`❌ Failed to get diff: ${error.message}`);
   }
 }
 
 export async function handleCodeGenRevise(ctx: BotContext, jobId: string): Promise<void> {
+  console.log(`🛠️ [handleCodeGenRevise] START — jobId=${jobId}, telegramId=${ctx.from?.id}`);
   await ctx.answerCallbackQuery();
   ctx.session.codegenJobId = jobId;
   ctx.session.codegenAwaitingRevision = true;
   await ctx.reply("🔄 Describe what changes you want:");
+  console.log("🛠️ [handleCodeGenRevise] END — awaiting revision input");
 }
 
 export async function handleCodeGenRevisionInput(ctx: BotContext): Promise<void> {
-  if (!ctx.session.codegenAwaitingRevision || !ctx.user) return;
+  console.log(`🛠️ [handleCodeGenRevisionInput] START — telegramId=${ctx.from?.id}`);
+  if (!ctx.session.codegenAwaitingRevision || !ctx.user) {
+    console.log("🛠️ [handleCodeGenRevisionInput] Not awaiting revision or no user, exiting early");
+    return;
+  }
 
   const feedback = ctx.message?.text?.trim();
-  if (!feedback) return;
+  if (!feedback) {
+    console.log("🛠️ [handleCodeGenRevisionInput] Empty feedback, exiting early");
+    return;
+  }
 
   ctx.session.codegenAwaitingRevision = false;
   const jobId = ctx.session.codegenJobId;
-  if (!jobId) return;
+  if (!jobId) {
+    console.log("🛠️ [handleCodeGenRevisionInput] No jobId in session, exiting early");
+    return;
+  }
 
   const db = getDb();
   const job = db.prepare("SELECT * FROM codegen_jobs WHERE id = ? AND user_id = ?")
     .get(jobId, ctx.user.id) as CodeGenJob | undefined;
-  if (!job?.workspace_path) return;
+  if (!job?.workspace_path) {
+    console.log(`🛠️ [handleCodeGenRevisionInput] Job not found — jobId=${jobId}`);
+    return;
+  }
+  console.log(`🛠️ [handleCodeGenRevisionInput] Job found — jobId=${jobId}, workspace=${job.workspace_path}`);
 
   await ctx.reply("🔄 Revising code...");
 
   try {
     const token = decrypt(ctx.user.github_token_enc, config.encryptionKey);
+
+    console.log("🌳 [handleCodeGenRevisionInput] Getting repo tree");
     const repoTree = await getRepoTree(job.workspace_path);
+    console.log(`🌳 [handleCodeGenRevisionInput] Repo tree retrieved — length=${repoTree.length}`);
+
     const systemPrompt = buildCodeGenSystemPrompt(repoTree) + "\n\n" + CODEGEN_REVISION_PROMPT;
 
     const copilot = new CopilotClient(token);
+    console.log("🤖 [handleCodeGenRevisionInput] Starting AI revision call");
     const response = await copilot.chatCompletion(systemPrompt, [
       { role: "user", content: job.description },
       { role: "assistant", content: "I made the initial changes." },
       { role: "user", content: `Revision requested: ${feedback}` },
     ]);
+    console.log(`🤖 [handleCodeGenRevisionInput] AI revision call complete — responseLength=${response.length}`);
 
-    const result: CodeGenResult = JSON.parse(response);
+    let result: CodeGenResult;
+    try {
+      result = JSON.parse(response);
+      console.log(`✅ [handleCodeGenRevisionInput] JSON parse successful — fileCount=${result.files.length}`);
+    } catch (parseError) {
+      console.error(`❌ [handleCodeGenRevisionInput] JSON parse failed — error=${JSON.stringify(parseError, Object.getOwnPropertyNames(parseError as object))}`);
+      throw parseError;
+    }
+
+    console.log(`📝 [handleCodeGenRevisionInput] Applying file changes — fileCount=${result.files.length}`);
     await applyFileChanges(job.workspace_path, result.files);
+    console.log("📝 [handleCodeGenRevisionInput] File changes applied");
+
+    console.log(`💾 [handleCodeGenRevisionInput] Committing — message="refactor: ${result.commitMessage}"`);
     await commitAll(job.workspace_path, `refactor: ${result.commitMessage}`);
+    console.log("💾 [handleCodeGenRevisionInput] Commit complete");
 
     const fileList = result.files
       .map((f) => `${f.action === "create" ? "➕" : f.action === "modify" ? "📝" : "🗑️"} ${f.path}`)
@@ -186,31 +265,47 @@ export async function handleCodeGenRevisionInput(ctx: BotContext): Promise<void>
         reply_markup: codegenReviewKeyboard(jobId),
       }
     );
+    console.log(`🛠️ [handleCodeGenRevisionInput] END — success, jobId=${jobId}`);
   } catch (error: any) {
+    console.error(`❌ [handleCodeGenRevisionInput] Error — jobId=${jobId}, error=${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
     await ctx.reply(`❌ Revision failed: ${error.message}`);
   }
 }
 
 export async function handleCodeGenCreatePr(ctx: BotContext, jobId: string): Promise<void> {
+  console.log(`🛠️ [handleCodeGenCreatePr] START — jobId=${jobId}, telegramId=${ctx.from?.id}`);
   await ctx.answerCallbackQuery();
-  if (!ctx.user) return;
+  if (!ctx.user) {
+    console.log("🛠️ [handleCodeGenCreatePr] No user found, exiting early");
+    return;
+  }
 
   const db = getDb();
   const job = db.prepare("SELECT * FROM codegen_jobs WHERE id = ? AND user_id = ?")
     .get(jobId, ctx.user.id) as CodeGenJob | undefined;
-  if (!job?.workspace_path || !job.branch_name) return;
+  if (!job?.workspace_path || !job.branch_name) {
+    console.log(`🛠️ [handleCodeGenCreatePr] Job not found or missing workspace/branch — jobId=${jobId}`);
+    return;
+  }
 
   const repo = db.prepare("SELECT * FROM repos WHERE id = ?").get(job.repo_id) as any;
-  if (!repo) return;
+  if (!repo) {
+    console.log(`🛠️ [handleCodeGenCreatePr] Repo not found — repoId=${job.repo_id}`);
+    return;
+  }
+  console.log(`🛠️ [handleCodeGenCreatePr] Job and repo found — repo=${repo.full_name}, branch=${job.branch_name}`);
 
   await ctx.editMessageText("🔄 Pushing branch and creating PR...");
 
   try {
+    console.log(`🚀 [handleCodeGenCreatePr] Pushing branch — branch=${job.branch_name}`);
     await pushBranch(job.workspace_path, job.branch_name);
+    console.log("🚀 [handleCodeGenCreatePr] Branch pushed");
 
     const [owner, repoName] = repo.full_name.split("/");
     const octokit = createOctokit(ctx.user);
 
+    console.log(`📋 [handleCodeGenCreatePr] Creating PR — owner=${owner}, repo=${repoName}, head=${job.branch_name}, base=${repo.default_branch ?? "main"}`);
     const { data: pr } = await octokit.rest.pulls.create({
       owner,
       repo: repoName,
@@ -219,31 +314,41 @@ export async function handleCodeGenCreatePr(ctx: BotContext, jobId: string): Pro
       head: job.branch_name,
       base: repo.default_branch ?? "main",
     });
+    console.log(`✅ [handleCodeGenCreatePr] PR created — prNumber=${pr.number}, url=${pr.html_url}`);
 
     db.prepare("UPDATE codegen_jobs SET status = 'done', pr_url = ? WHERE id = ?")
       .run(pr.html_url, jobId);
 
     await cleanupWorkspace(job.workspace_path);
+    console.log("🧹 [handleCodeGenCreatePr] Workspace cleaned up");
 
     await ctx.editMessageText(
       `✅ *PR Created!*\n\n🔗 [PR #${pr.number}: ${job.description}](${pr.html_url})`,
       { parse_mode: "Markdown" }
     );
+    console.log(`🛠️ [handleCodeGenCreatePr] END — success, jobId=${jobId}`);
   } catch (error: any) {
+    console.error(`❌ [handleCodeGenCreatePr] Error — jobId=${jobId}, error=${JSON.stringify(error, Object.getOwnPropertyNames(error))}`);
     await ctx.editMessageText(`❌ Failed to create PR: ${error.message}`);
   }
 }
 
 export async function handleCodeGenCancel(ctx: BotContext, jobId: string): Promise<void> {
+  console.log(`🛠️ [handleCodeGenCancel] START — jobId=${jobId}, telegramId=${ctx.from?.id}`);
   await ctx.answerCallbackQuery();
-  if (!ctx.user) return;
+  if (!ctx.user) {
+    console.log("🛠️ [handleCodeGenCancel] No user found, exiting early");
+    return;
+  }
 
   const db = getDb();
   const job = db.prepare("SELECT * FROM codegen_jobs WHERE id = ? AND user_id = ?")
     .get(jobId, ctx.user.id) as CodeGenJob | undefined;
 
   if (job?.workspace_path) {
+    console.log(`🧹 [handleCodeGenCancel] Cleaning up workspace — path=${job.workspace_path}`);
     await cleanupWorkspace(job.workspace_path);
+    console.log("🧹 [handleCodeGenCancel] Workspace cleaned up");
   }
 
   db.prepare("UPDATE codegen_jobs SET status = 'cancelled' WHERE id = ?").run(jobId);
@@ -256,4 +361,5 @@ export async function handleCodeGenCancel(ctx: BotContext, jobId: string): Promi
       ],
     },
   });
+  console.log(`🛠️ [handleCodeGenCancel] END — jobId=${jobId} cancelled`);
 }

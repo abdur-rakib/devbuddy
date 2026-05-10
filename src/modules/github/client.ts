@@ -19,6 +19,7 @@ export async function listUserRepos(
   return data.map((r) => ({
     full_name: r.full_name,
     description: r.description,
+    default_branch: r.default_branch,
   }));
 }
 
