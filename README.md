@@ -18,7 +18,7 @@ DevBuddy is a Telegram bot that brings GitHub directly into your chat. Browse re
 
 | Feature                | Description                                                         |
 | ---------------------- | ------------------------------------------------------------------- |
-| 🔐 **Secure Auth**     | Encrypted GitHub token storage with per-user onboarding             |
+| 🔐 **Secure Auth**     | Encrypted dual-token storage (GitHub + Copilot) with two-step onboarding |
 | 📂 **Repo Browser**    | List, select, and navigate your GitHub repositories                 |
 | 🔀 **PR Management**   | View PRs, inspect diffs, approve, and merge (squash/rebase/merge)   |
 | 🐛 **Issue Tracker**   | Browse and manage repository issues                                 |
@@ -260,29 +260,44 @@ make docker-down
      │                      │  check user exists    │
      │                      │──────────────────────▶│
      │                      │◀──────────────────────│
-     │  "Enter your GitHub  │                       │
-     │   Personal Access    │                       │
-     │   Token"             │                       │
+     │                      │                       │
+     │  Step 1: "Send your  │                       │
+     │  GitHub PAT"         │                       │
      │◀─────────────────────│                       │
      │                      │                       │
      │  ghp_xxxxxxxxxxxx    │                       │
      │─────────────────────▶│                       │
-     │                      │  encrypt(token)       │
+     │                      │  validate via GitHub  │
+     │                      │  API + encrypt        │
      │                      │──────┐                │
      │                      │◀─────┘ AES-256-GCM    │
-     │                      │                       │
-     │                      │  store encrypted      │
+     │                      │  store github_token   │
      │                      │──────────────────────▶│
      │                      │                       │
-     │  ✅ "You're all set!"│                       │
+     │  Step 2: "Send your  │                       │
+     │  Copilot API Token"  │                       │
+     │◀─────────────────────│                       │
+     │                      │                       │
+     │  github_pat_xxxxx    │                       │
+     │─────────────────────▶│                       │
+     │                      │  validate via Models  │
+     │                      │  API + encrypt        │
+     │                      │──────┐                │
+     │                      │◀─────┘ AES-256-GCM    │
+     │                      │  store copilot_token  │
+     │                      │──────────────────────▶│
+     │                      │                       │
+     │  ✅ "Setup complete!" │                       │
      │◀─────────────────────│                       │
      │                      │                       │
 ```
 
-- Tokens are encrypted with **AES-256-GCM** before storage
-- Each user's token is individually encrypted
+- Both tokens are encrypted with **AES-256-GCM** before storage
+- Each user's tokens are individually encrypted
 - The encryption key is set via the `ENCRYPTION_KEY` env variable
-- Tokens are decrypted in-memory only when making GitHub API calls
+- **GitHub PAT** is decrypted only when making GitHub API calls (Octokit)
+- **Copilot Token** is decrypted only when making AI API calls (chat, review, codegen)
+- Settings menu allows updating each token independently
 
 ---
 

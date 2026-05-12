@@ -12,6 +12,7 @@ describe("Database Schema", () => {
         telegram_id INTEGER UNIQUE NOT NULL,
         telegram_username TEXT,
         github_token_enc BLOB NOT NULL,
+        copilot_token_enc BLOB NOT NULL,
         active_repo_id INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -27,7 +28,7 @@ describe("Database Schema", () => {
       );
 
       CREATE TABLE IF NOT EXISTS chat_messages (
-        id INTEGER PRIMARY KEY,
+        id TEXT PRIMARY KEY,
         user_id INTEGER NOT NULL,
         session_id TEXT NOT NULL,
         role TEXT NOT NULL,
@@ -74,6 +75,7 @@ describe("Database Schema", () => {
         telegram_id INTEGER UNIQUE NOT NULL,
         telegram_username TEXT,
         github_token_enc BLOB NOT NULL,
+        copilot_token_enc BLOB NOT NULL,
         active_repo_id INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -97,11 +99,13 @@ describe("Database Schema", () => {
     expect(columnNames).toContain("telegram_id");
     expect(columnNames).toContain("telegram_username");
     expect(columnNames).toContain("github_token_enc");
+    expect(columnNames).toContain("copilot_token_enc");
     expect(columnNames).toContain("active_repo_id");
     expect(columnNames).toContain("created_at");
 
     // Verify constraints
     expect(columns.find((c) => c.name === "github_token_enc")?.notnull).toBe(1);
+    expect(columns.find((c) => c.name === "copilot_token_enc")?.notnull).toBe(1);
     expect(columns.find((c) => c.name === "telegram_id")?.notnull).toBe(1);
 
     db.close();
@@ -150,7 +154,7 @@ describe("Database Schema", () => {
 
     db.exec(`
       CREATE TABLE IF NOT EXISTS chat_messages (
-        id INTEGER PRIMARY KEY,
+        id TEXT PRIMARY KEY,
         user_id INTEGER NOT NULL,
         session_id TEXT NOT NULL,
         role TEXT NOT NULL,
@@ -236,6 +240,7 @@ describe("Database Schema", () => {
         telegram_id INTEGER UNIQUE NOT NULL,
         telegram_username TEXT,
         github_token_enc BLOB NOT NULL,
+        copilot_token_enc BLOB NOT NULL,
         active_repo_id INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -251,7 +256,7 @@ describe("Database Schema", () => {
       );
 
       CREATE TABLE IF NOT EXISTS chat_messages (
-        id INTEGER PRIMARY KEY,
+        id TEXT PRIMARY KEY,
         user_id INTEGER NOT NULL,
         session_id TEXT NOT NULL,
         role TEXT NOT NULL,
@@ -293,6 +298,7 @@ describe("Database Schema", () => {
         telegram_id INTEGER UNIQUE NOT NULL,
         telegram_username TEXT,
         github_token_enc BLOB NOT NULL,
+        copilot_token_enc BLOB NOT NULL,
         active_repo_id INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -310,9 +316,9 @@ describe("Database Schema", () => {
 
     // Insert a user
     const insertUser = db.prepare(
-      `INSERT INTO users (telegram_id, github_token_enc) VALUES (?, ?)`
+      `INSERT INTO users (telegram_id, github_token_enc, copilot_token_enc) VALUES (?, ?, ?)`
     );
-    insertUser.run(123456, Buffer.from("encrypted_token"));
+    insertUser.run(123456, Buffer.from("encrypted_github"), Buffer.from("encrypted_copilot"));
 
     // Insert a repo with valid foreign key
     const insertRepo = db.prepare(
