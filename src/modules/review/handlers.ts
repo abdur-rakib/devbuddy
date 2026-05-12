@@ -40,8 +40,8 @@ export async function handlePrReview(
     ]);
     console.log(`🔍 [handlePrReview] PR+diff fetched — title="${pr.title}", diffLength=${diff.length}`);
 
-    const token = decrypt(ctx.user.github_token_enc, config.encryptionKey);
-    const copilot = new CopilotClient(token);
+    const copilotToken = decrypt(ctx.user.copilot_token_enc, config.encryptionKey);
+    const copilot = new CopilotClient(copilotToken);
 
     const userMessage = `Review this pull request:\n\nTitle: ${pr.title}\nBranch: ${pr.head} → ${pr.base}\n\nDiff:\n${diff}`;
 

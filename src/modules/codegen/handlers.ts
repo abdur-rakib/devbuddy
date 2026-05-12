@@ -91,10 +91,11 @@ export async function handleCodeGenDescription(ctx: BotContext): Promise<void> {
   await ctx.reply("🔄 Working on it... Cloning repo, analyzing code, generating changes...");
 
   try {
-    const token = decrypt(ctx.user.github_token_enc, config.encryptionKey);
+    const githubToken = decrypt(ctx.user.github_token_enc, config.encryptionKey);
+    const copilotToken = decrypt(ctx.user.copilot_token_enc, config.encryptionKey);
 
     console.log(`📦 [handleCodeGenDescription] Cloning repo — fullName=${repo.full_name}`);
-    await cloneRepo(`https://github.com/${repo.full_name}.git`, workspacePath, token);
+    await cloneRepo(`https://github.com/${repo.full_name}.git`, workspacePath, githubToken);
     console.log("📦 [handleCodeGenDescription] Clone complete");
 
     console.log(`🌿 [handleCodeGenDescription] Creating branch — branch=${branchName}`);
@@ -107,7 +108,7 @@ export async function handleCodeGenDescription(ctx: BotContext): Promise<void> {
 
     const systemPrompt = buildCodeGenSystemPrompt(repoTree);
 
-    const copilot = new CopilotClient(token);
+    const copilot = new CopilotClient(copilotToken);
     console.log("🤖 [handleCodeGenDescription] Starting AI codegen call");
     const response = await copilot.chatCompletion(systemPrompt, [
       { role: "user", content: description },
@@ -220,7 +221,7 @@ export async function handleCodeGenRevisionInput(ctx: BotContext): Promise<void>
   await ctx.reply("🔄 Revising code...");
 
   try {
-    const token = decrypt(ctx.user.github_token_enc, config.encryptionKey);
+    const copilotToken = decrypt(ctx.user.copilot_token_enc, config.encryptionKey);
 
     console.log("🌳 [handleCodeGenRevisionInput] Getting repo tree");
     const repoTree = await getRepoTree(job.workspace_path);
@@ -228,7 +229,7 @@ export async function handleCodeGenRevisionInput(ctx: BotContext): Promise<void>
 
     const systemPrompt = buildCodeGenSystemPrompt(repoTree) + "\n\n" + CODEGEN_REVISION_PROMPT;
 
-    const copilot = new CopilotClient(token);
+    const copilot = new CopilotClient(copilotToken);
     console.log("🤖 [handleCodeGenRevisionInput] Starting AI revision call");
     const response = await copilot.chatCompletion(systemPrompt, [
       { role: "user", content: job.description },

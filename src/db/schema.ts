@@ -9,6 +9,7 @@ export function initializeSchema(): void {
       telegram_id INTEGER UNIQUE NOT NULL,
       telegram_username TEXT,
       github_token_enc BLOB NOT NULL,
+      copilot_token_enc BLOB NOT NULL,
       active_repo_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );

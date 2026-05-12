@@ -75,8 +75,8 @@ export async function handleChatMessage(ctx: BotContext): Promise<void> {
   console.log(`💬 [handleChatMessage] History loaded — count=${history.length}`);
 
   try {
-    const token = decrypt(ctx.user.github_token_enc, config.encryptionKey);
-    const copilot = new CopilotClient(token);
+    const copilotToken = decrypt(ctx.user.copilot_token_enc, config.encryptionKey);
+    const copilot = new CopilotClient(copilotToken);
 
     console.log("🤖 [handleChatMessage] Starting AI chat call");
     const response = await copilot.chatCompletion(

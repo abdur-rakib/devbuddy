@@ -2,7 +2,7 @@ import { Bot, session } from "grammy";
 import type { BotContext, SessionData } from "./modules/auth/types.js";
 import { config } from "./config.js";
 import { authMiddleware } from "./modules/auth/middleware.js";
-import { handleStart, handleTokenInput, handleSettings, handleUpdateToken } from "./modules/auth/handlers.js";
+import { handleStart, handleTokenInput, handleSettings, handleUpdateGitHubToken, handleUpdateCopilotToken } from "./modules/auth/handlers.js";
 import {
   handleRepoList, handleRepoSelect, handleIssueList,
   handlePrList, handlePrDetail, handlePrDiff,
@@ -49,7 +49,8 @@ export function createBot(): Bot<BotContext> {
       if (data === "noop") return ctx.answerCallbackQuery();
 
       // Settings
-      if (data === "settings:update_token") { console.log("📲 [callback_query] Routing to handleUpdateToken"); return handleUpdateToken(ctx); }
+      if (data === "settings:update_github_token") { console.log("📲 [callback_query] Routing to handleUpdateGitHubToken"); return handleUpdateGitHubToken(ctx); }
+      if (data === "settings:update_copilot_token") { console.log("📲 [callback_query] Routing to handleUpdateCopilotToken"); return handleUpdateCopilotToken(ctx); }
 
       // Chat
       if (data === "chat:new") { console.log("📲 [callback_query] Routing to handleChatStart"); return handleChatStart(ctx); }
@@ -122,8 +123,8 @@ export function createBot(): Bot<BotContext> {
 
   // Text message handler (catch-all)
   bot.on("message:text", async (ctx) => {
-    if (ctx.session.onboardingStep === "awaiting_token") {
-      console.log(`📨 [message:text] Routing to handleTokenInput — telegramId=${ctx.from?.id}`);
+    if (ctx.session.onboardingStep === "awaiting_token" || ctx.session.onboardingStep === "awaiting_copilot_token") {
+      console.log(`📨 [message:text] Routing to handleTokenInput — telegramId=${ctx.from?.id}, step=${ctx.session.onboardingStep}`);
       return handleTokenInput(ctx);
     }
     if (ctx.session.codegenAwaitingDescription) {
